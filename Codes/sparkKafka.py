@@ -4,78 +4,92 @@
 import os  
 import re
 import json  
+import pandas as pd
 import matplotlib.pyplot as plt
-# os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-streaming-kafka-0-8_2.11:1.6.0 pyspark-shell'  
-#    Spark
+import plotly.plotly as py
+from plotly.graph_objs import *
+
 from pyspark import SparkContext  
 from pyspark.streaming import StreamingContext  
 from pyspark.streaming.kafka import KafkaUtils  
+from pyspark.sql import Row, SQLContext
+from pyspark.sql import HiveContext
 from tweet_parser.tweet import Tweet
 
-sc = SparkContext(appName="CS523FinalProject")  
-sc.setLogLevel("WARN")  
-ssc = StreamingContext(sc, 60)
+def getSqlContextInstance(sparkContext):
+    if ('sqlContextSingletonInstance' not in globals()):
+        globals()['sqlContextSingletonInstance'] = SQLContext(sparkContext)
+    return globals()['sqlContextSingletonInstance']
 
-kvs = KafkaUtils.createStream(ssc, 'localhost:2181', 'Spark-Streaming', {'tweets':1})
-parsed = kvs.map(lambda v: json.loads(v[1]))
-
-
-# keys = parsed.map(lambda tweet: tweet.keys())
-# keys.pprint()
-# values = parsed.map(lambda tweet: tweet.values())
-# values.pprint()   
-# entities = parsed.map(lambda t: t['entities'])
-# entities.pprint()
-
-# Count the langs
-langsCount = parsed.map(lambda tweet: tweet.get('lang')) \
-    .filter(lambda s: s != None) \
-    .map(lambda s: (s,1)) \
-    .reduceByKey(lambda x,y: x + y) 
-
-langsCount.pprint()
-
-# data = {
-# 'bins': langsCount[0][:-1],
-# 'freq': langsCount[1]
-# }
-# plt.bar(data['bins'], data['freq'], width=2000)
-# plt.title('Histogram of \'balance\'')
-
-# Count the hashtags
-hashtags = parsed.filter(lambda t: t.get('lang') == 'en') \
-    .map(lambda tweet: tweet.get('entities')) \
-    .filter(lambda e: e != None) \
-    .map(lambda e: e.get('hashtags')) \
-    .flatMap(lambda a: a[:]) \
-    .filter(lambda d: d.get('text').encode('utf-8').isalpha()) \
-    .map(lambda d: d.get('text').encode('utf-8')) \
-    .map(lambda s: (s,1)) \
-    .reduceByKey(lambda x,y: x + y) 
-hashtags.pprint()
+def getHiveContextInstance(sparkContext):
+    if ('hiveContextSingletonInstance' not in globals()):
+        globals()['hiveContextSingletonInstance'] = HiveContext(sparkContext)
+    return globals()['hiveContextSingletonInstance']
 
 
+def getLangsCount(tweets):
+    # Count the langs
+    langsCount = tweets.map(lambda tweet: tweet.get('lang')) \
+        .filter(lambda s: s != None) \
+        .map(lambda s: (s,1)) \
+        .reduceByKey(lambda x,y: x + y) 
+
+    langsCount.pprint()
+
+    return langsCount
+
+def getHashtags(tweets):
+    # Count the hashtags
+    hashtags = parsed.filter(lambda t: t.get('lang') == 'en') \
+        .map(lambda tweet: tweet.get('entities')) \
+        .filter(lambda e: e != None) \
+        .map(lambda e: e.get('hashtags')) \
+        .flatMap(lambda a: a[:]) \
+        .filter(lambda d: all(ord(c) < 128 for c in d.get('text').encode('utf-8'))) \
+        .map(lambda d: d.get('text').encode('utf-8')) \
+        .map(lambda s: (s,1)) \
+        .reduceByKey(lambda x,y: x + y) 
+    hashtags.pprint()
 
 
-# text_counts = parsed.map(lambda tweet: (tweet.get('text'),1)).reduceByKey(lambda x,y: x + y)
-# text_counts.pprint()
+    ## We can also use 
+    ## .filter(lambda d: d.get('text').encode('utf-8').isalpha()) 
+    ## if we want to only count the englist words
 
-# author_counts = parsed.map(lambda tweet: (tweet['user']['screen_name'],1)).reduceByKey(lambda x,y: x + y)
-# author_counts.pprint()
-# parsed.count().map(lambda x:'Tweets in this batch: %s' % x).pprint()  
-# authors_dstream = parsed.map(lambda tweet: tweet['user']['screen_name']) 
-# author_counts = authors_dstream.countByValue()  
-# author_counts.pprint() 
 
-# author_counts_sorted_dstream = author_counts.transform((lambda foo:foo.sortBy(lambda x:( -x[1]))))
-# author_counts_sorted_dstream.pprint()
+def storeToHive(tweets, rdd):
+    
+    # Get the singleton instance of SparkSession
+    sqlContext = getHiveContextInstance(rdd.context)
+    # hiveContext = getHiveContextInstance(rdd.context)
 
-# top_five_authors = author_counts_sorted_dstream.transform(lambda rdd:sc.parallelize(rdd.take(5)))
-# top_five_authors.pprint() 
+    # Convert RDD[String, Integer] to RDD[Row] to DataFrame
+    rowRdd = rdd.map(lambda t: Row(lang=t[0], count=t[1]))
+    df_langscount = sqlContext.createDataFrame(rowRdd)
 
-# filtered_authors = author_counts.filter(lambda x:x[1]>1 or x[0].lower().startswith('rm'))
+    # sqlContext.registerDataFrameAsTable(df_langscount, "langscount")
+    df_langscount.write.mode('append').saveAsTable("langscount")
+    df2 = sqlContext.sql("select lang, sum(count) as cnt \
+        from langscount group by lang order by cnt desc")
+    
+    # data = Data([Histogram(x=df2.toPandas()['lang'])])
+    # py.iplot(data, filename="spark/langscount_every_10_sec")
+    
 
-# filtered_authors.transform(lambda rdd:rdd.sortBy(lambda x:-x[1])).pprint()
+if __name__ == "__main__":
 
-ssc.start()  
-ssc.awaitTermination() 
+    sc = SparkContext(appName="CS523FinalProject")  
+    sc.setLogLevel("ERROR")
+    sc.setSystemProperty("hive.metastore.uris", "")
+    ssc = StreamingContext(sc, 10)
+
+    kvs = KafkaUtils.createStream(ssc, 'localhost:2181', 'Spark-Streaming', {'tweets':1})
+    parsed = kvs.map(lambda v: json.loads(v[1]))
+
+    langscount = getLangsCount(parsed)
+    # getHashtags(parsed)
+    langscount.foreachRDD(storeToHive)
+    # lanscount.pprint()
+
+    ssc.start()  
+    ssc.awaitTermination() 
