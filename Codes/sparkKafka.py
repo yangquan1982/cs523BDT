@@ -50,7 +50,7 @@ def storeLangsToHive(tweets, rdd):
     # sqlContext.registerDataFrameAsTable(df_langscount, "langscount")
     df_langscount.write.mode('append').saveAsTable("langscount")
     df2 = sqlContext.sql("select lang, sum(count) as cnt \
-        from langscount group by lang order by cnt desc")
+        from langscount group by lang order by cnt desc limit 10")
     df3 = df2.toPandas()
     data = go.Data([go.Bar(x=df3['lang'],y=df3['cnt'])])
     layout = go.Layout(xaxis=dict(autorange=True))
@@ -118,7 +118,7 @@ def storeSourceToHive(tweets, rdd):
     df_source = sqlContext.createDataFrame(rowRdd)
     df_source.write.mode('append').saveAsTable("source")
     df2 = sqlContext.sql("select source, sum(count) as cnt \
-        from source group by source order by cnt desc")
+        from source group by source order by cnt desc limit 10")
     df3 = df2.toPandas()
     data = go.Data([go.Bar(x=df3['source'],y=df3['cnt'])])
     layout = go.Layout(xaxis=dict(autorange=True))
