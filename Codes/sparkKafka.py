@@ -161,7 +161,7 @@ def storeHashtagsTrendToHive(tweets, rdd):
     data = []
     for tag in df_hashtags.map(lambda r: r.hashtags).collect():
         df_1 = sqlContext.sql("select minutes, count(*) as cnt \
-            from hashtagsTrend where hashtags = \"" + tag.encode('utf-8') + "\" group by minutes")
+            from hashtagsTrend where hashtags = \"" + tag.encode('utf-8') + "\" group by minutes order by minutes")
         df_1 = df_1.toPandas()
         data_1 = go.Scatter(x = df_1['minutes'], y = df_1['cnt'], mode = 'line', name = tag.encode('utf-8'))
         data.append(data_1)
