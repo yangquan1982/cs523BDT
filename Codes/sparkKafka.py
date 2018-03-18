@@ -83,17 +83,17 @@ def storeHashtagsToHive(tweets, rdd):
 
     # Convert RDD[String, Integer] to RDD[Row] to DataFrame
     rowRdd = rdd.map(lambda t: Row(hashtags=t[0], count=t[1]))
-    df_langscount = sqlContext.createDataFrame(rowRdd)
-    df_langscount.write.mode('append').saveAsTable("hashtags")
+    df_hashtags = sqlContext.createDataFrame(rowRdd)
+    df_hashtags.write.mode('append').saveAsTable("hashtags")
     df2 = sqlContext.sql("select hashtags, sum(count) as cnt \
-        from hashtags group by lang order by cnt desc")
+        from hashtags group by hashtags order by cnt desc limit 20")
     df3 = df2.toPandas()
     data = go.Data([go.Bar(x=df3['hashtags'],y=df3['cnt'])])
     layout = go.Layout(xaxis=dict(autorange=True))
     fig = go.Figure(data=data, layout=layout)
     py.offline.plot(fig, filename="/home/jason/bdt/assignments/cs523BDT/DataVirtual/hashtags_every_10_sec.html")
     sqlContext.sql("select hashtags, sum(count) as cnt \
-        from hashtags group by lang order by cnt desc limit 5").show()
+        from hashtags group by hashtags order by cnt desc limit 5").show()
 
 
 def getSourcesCount(tweets):
@@ -115,17 +115,59 @@ def storeSourceToHive(tweets, rdd):
 
     # Convert RDD[String, Integer] to RDD[Row] to DataFrame
     rowRdd = rdd.map(lambda t: Row(source=t[0], count=t[1]))
-    df_langscount = sqlContext.createDataFrame(rowRdd)
-    df_langscount.write.mode('append').saveAsTable("source")
+    df_source = sqlContext.createDataFrame(rowRdd)
+    df_source.write.mode('append').saveAsTable("source")
     df2 = sqlContext.sql("select source, sum(count) as cnt \
-        from source group by lang order by cnt desc")
+        from source group by source order by cnt desc")
     df3 = df2.toPandas()
     data = go.Data([go.Bar(x=df3['source'],y=df3['cnt'])])
     layout = go.Layout(xaxis=dict(autorange=True))
     fig = go.Figure(data=data, layout=layout)
     py.offline.plot(fig, filename="/home/jason/bdt/assignments/cs523BDT/DataVirtual/source_every_10_sec.html")
-    sqlContext.sql("select hashtags, sum(count) as cnt \
-        from source group by lang order by cnt desc limit 5").show()
+    sqlContext.sql("select source, sum(count) as cnt \
+        from source group by source order by cnt desc limit 5").show()
+
+def parseDictListInTuple(data):
+    list = []
+    for d in data[0]:
+        list.append((data[1], d))
+    return list
+
+def getHashtagsTrend(tweets):
+    # Count the hashtags
+    hashtagsTrend = parsed.filter(lambda t: t.get('lang') == 'en') \
+        .map(lambda tweet: (tweet.get('entities'), tweet.get('created_at') )) \
+        .filter(lambda e: e[0] != None) \
+        .map(lambda e: (e[0].get('hashtags'), e[1])) \
+        .flatMap(lambda a: parseDictListInTuple(a)) \
+        .map(lambda t: (t[0].encode('utf-8')[:16], t[1].get('text').encode('utf-8'))) 
+    
+    hashtagsTrend.pprint()
+
+    return hashtagsTrend
+
+def storeHashtagsTrendToHive(tweets, rdd):
+    # Get the singleton instance of SparkSession
+    sqlContext = getHiveContextInstance(rdd.context)
+
+    # Convert RDD[String, Integer] to RDD[Row] to DataFrame
+    rowRdd = rdd.map(lambda t: Row(minutes=t[0], hashtags=t[1]))
+    df_hashtagsTrend = sqlContext.createDataFrame(rowRdd)
+    df_hashtagsTrend.write.mode('append').saveAsTable("hashtagsTrend")
+
+    df_hashtags = sqlContext.sql("select hashtags, sum(count) as cnt \
+        from hashtags group by hashtags order by cnt desc limit 5")
+    
+    data = []
+    for tag in df_hashtags.map(lambda r: r.hashtags).collect():
+        df_1 = sqlContext.sql("select minutes, count(*) as cnt \
+            from hashtagsTrend where hashtags = \"" + tag.encode('utf-8') + "\" group by minutes")
+        df_1 = df_1.toPandas()
+        data_1 = go.Scatter(x = df_1['minutes'], y = df_1['cnt'], mode = 'line', name = tag.encode('utf-8'))
+        data.append(data_1)
+
+    py.offline.plot(data, filename="/home/jason/bdt/assignments/cs523BDT/DataVirtual/hashtagsTrend_every_10_sec.html")
+    
 
 if __name__ == "__main__":
 
@@ -143,8 +185,13 @@ if __name__ == "__main__":
     hashtags = getHashtags(parsed)
     hashtags.foreachRDD(storeHashtagsToHive)
 
+    hashtagsTrend =  getHashtagsTrend(parsed)
+    hashtagsTrend.foreachRDD(storeHashtagsTrendToHive)
+
     sources = getSourcesCount(parsed)
     sources.foreachRDD(storeSourceToHive)
+
+   
 
     ssc.start()  
     ssc.awaitTermination() 

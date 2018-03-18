@@ -15,9 +15,9 @@ class StdOutListener(StreamListener):
     def on_data(self, data):
         producer.send_messages("tweets", data.encode('utf-8'))
         print data
-        #fh = open("tweets.json", "a")
-        #fh.write(data)
-        #fh.close
+        fh = open("../Data/tweets_AI_1.json", "a")
+        fh.write(data)
+        fh.close
         return True
     def on_error(self, status):
         print status
@@ -28,6 +28,5 @@ l = StdOutListener()
 auth = OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
 stream = Stream(auth, l)
-# stream.filter(track=["Stephen Hawking"])
-stream.filter(track=["Stormy Daniels"])
-# stream.filter(track=["Xijinping"])
+stream.filter(track=["AI", "Artificial intelligence", "ArtificialIntelligence"])
+

@@ -26,9 +26,6 @@ There are two problems, one is package org.apache.spark:spark-streaming-kafka-0â
 
 ## Hive Table Design
 In order to easily proceed the data virtualization, we need to store the spark streaming data into hive table and then use spark sql and data frame.
-the first version of the hive table would be as follows:
-    Table name: tweets.
-    Columns: id, userId, source, lang, timestamp
 
 ### How to config hive to use mysql
 https://dzone.com/articles/how-configure-mysql-metastore
