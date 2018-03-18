@@ -46,5 +46,5 @@ $  $SPARK_HOME/spark-submit --packages org.apache.spark:spark-streaming-kafka-0â
 When it's running, it gets data from kafka and parse data to count hashtags, you will see some simple result in the terminal window. Since the spark streaming batch interval is set to 10s, the interval analysis result is stored to hive for further analysis. In the mean time, we extract data from hive and proceed further analysis using spark SQL, then visualizing the final result by Plotly. In our main program, the spark SQL will analysis the history data, and update the data visualization every 10s with the latest data.
 
 ## Contributor
-- Cun Yang: cyang@mum.edu
+- Quan Yang: qyang@mum.edu
 - Jiecheng Han: jhan@mum.edu
