@@ -1,3 +1,0 @@
-python twitter_streaming.py
-
-python twitter_streaming.py > twitter_data.txt

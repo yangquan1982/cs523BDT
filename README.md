@@ -16,6 +16,7 @@ In part 1, we use kafka to produce twitter's real-time streaming data and let sp
 ## Environment
 
 All the development work is done on Ubuntu 16.04. We use zookepper, kafka, spark, hive, plotly to integrate the whole project, which all are running under pseudo mode. The main program is written by python.
+Installation records: Docs/records.md
 
 ### Requirments
 - Anaconda2(python 2.7.14)
@@ -30,7 +31,7 @@ Firstly, you need to be sure all the components are correctly installed and star
 ### Get the data
 Under the project directory, run the getData.py script:
 ``` 
-$ python Code/getData.py
+$ python Codes/getData.py
 ```
 This script will use twitter real-time streaming API to get real-time tweets, the filter condition is set to "AI". It will proceed the tweets into kafka while writing to a local .json file.
 
@@ -44,6 +45,9 @@ The main program sparkKafka.py need to initialize by spark:
 $  $SPARK_HOME/spark-submit --packages org.apache.spark:spark-streaming-kafka-0–8_2.11:1.6.0 Codes/sparkKafka.py
 ```
 When it's running, it gets data from kafka and parse data to count hashtags, you will see some simple result in the terminal window. Since the spark streaming batch interval is set to 10s, the interval analysis result is stored to hive for further analysis. In the mean time, we extract data from hive and proceed further analysis using spark SQL, then visualizing the final result by Plotly. In our main program, the spark SQL will analysis the history data, and update the data visualization every 10s with the latest data.
+
+### Virtualization Results
+DataVirtual\file_analysis_output
 
 ## Contributor
 - Quan Yang: qyang@mum.edu
